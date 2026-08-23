@@ -1,17 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
 
 import 'database/database_helper.dart';
 import 'database/database_importer.dart';
 import 'database/database_validator.dart';
 import 'services/musicbrainz_enricher.dart';
-import 'services/musicbrainz_service.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  await DatabaseHelper.instance.database;
-
+void main() {
   runApp(const ChartLensApp());
 }
 
@@ -23,287 +17,253 @@ class ChartLensApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ChartLens',
-      home: const DatabaseTestScreen(),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.deepPurple,
+        ),
+        useMaterial3: true,
+      ),
+      home: const DatabaseScreen(),
     );
   }
 }
 
-class DatabaseTestScreen extends StatefulWidget {
-  const DatabaseTestScreen({super.key});
+class DatabaseScreen extends StatefulWidget {
+  const DatabaseScreen({super.key});
 
   @override
-  State<DatabaseTestScreen> createState() => _DatabaseTestScreenState();
+  State<DatabaseScreen> createState() =>
+      _DatabaseScreenState();
 }
 
-class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
-  String status = 'Checking database...';
+class _DatabaseScreenState
+    extends State<DatabaseScreen> {
+  bool _loading = true;
+  bool _enriching = false;
 
-  bool busy = false;
+  String _status = 'Loading database...';
 
-  double progress = 0.0;
+  int _artists = 0;
+  int _songs = 0;
+  int _albums = 0;
+  int _hot100Entries = 0;
+  int _billboard200Entries = 0;
 
-  Map<String, int> counts = {};
+  int _completed = 0;
+  int _total = 0;
+  int _matched = 0;
+  int _skipped = 0;
+  int _failed = 0;
+
+  String _currentArtist = '';
 
   @override
   void initState() {
     super.initState();
-
-    _loadExistingDatabase();
+    _loadCounts();
   }
 
   // ============================================================
-  // DATABASE
+  // LOAD DATABASE COUNTS
   // ============================================================
 
-  Future<void> _loadExistingDatabase() async {
+  Future<void> _loadCounts() async {
     try {
-      await loadCounts();
+      final db =
+          await DatabaseHelper.instance.database;
+
+      final artists =
+          await db.rawQuery(
+        'SELECT COUNT(*) AS count FROM artist',
+      );
+
+      final songs =
+          await db.rawQuery(
+        'SELECT COUNT(*) AS count FROM song',
+      );
+
+      final albums =
+          await db.rawQuery(
+        'SELECT COUNT(*) AS count FROM album',
+      );
+
+      final hot100 =
+          await db.rawQuery(
+        '''
+        SELECT COUNT(*) AS count
+        FROM chart_entry
+        WHERE chart_id = (
+          SELECT chart_id
+          FROM chart
+          WHERE name = 'Hot 100'
+        )
+        ''',
+      );
+
+      final billboard200 =
+          await db.rawQuery(
+        '''
+        SELECT COUNT(*) AS count
+        FROM chart_entry
+        WHERE chart_id = (
+          SELECT chart_id
+          FROM chart
+          WHERE name = 'Billboard 200'
+        )
+        ''',
+      );
 
       if (!mounted) return;
 
       setState(() {
-        status = 'Database loaded.';
+        _artists =
+            artists.first['count'] as int? ?? 0;
+
+        _songs =
+            songs.first['count'] as int? ?? 0;
+
+        _albums =
+            albums.first['count'] as int? ?? 0;
+
+        _hot100Entries =
+            hot100.first['count'] as int? ?? 0;
+
+        _billboard200Entries =
+            billboard200.first['count'] as int? ?? 0;
+
+        _loading = false;
+        _status = 'Database loaded.';
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        status = 'Database check failed:\n$e';
+        _loading = false;
+        _status = 'Database error: $e';
       });
     }
   }
 
-  Future<void> loadCounts() async {
-    final db = await DatabaseHelper.instance.database;
-
-    final artistCount = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM artist'),
-    )!;
-
-    final songCount = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM song'),
-    )!;
-
-    final albumCount = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM album'),
-    )!;
-
-    final hot100Count = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM chart_entry'),
-    )!;
-
-    final billboard200Count = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM album_chart_entry'),
-    )!;
-
-    if (!mounted) return;
-
-    setState(() {
-      counts = {
-        'Artists': artistCount,
-        'Songs': songCount,
-        'Albums': albumCount,
-        'Hot 100 entries': hot100Count,
-        'Billboard 200 entries': billboard200Count,
-      };
-    });
-  }
-
   // ============================================================
-  // IMPORT
+  // IMPORT DATABASE
   // ============================================================
 
-  Future<void> importDatabase() async {
+  Future<void> _importDatabase() async {
     setState(() {
-      busy = true;
-      status = 'Importing data...';
+      _loading = true;
+      _status = 'Importing database...';
     });
 
     try {
       await DatabaseImporter.importAll();
 
-      await loadCounts();
+      await _loadCounts();
 
       if (!mounted) return;
 
       setState(() {
-        status = 'Import completed successfully!';
-        busy = false;
+        _status = 'Import completed successfully.';
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        status = 'Import failed:\n$e';
-        busy = false;
+        _status = 'Import failed: $e';
       });
     }
   }
 
   // ============================================================
-  // DATABASE VALIDATION
+  // VALIDATE DATABASE
   // ============================================================
 
-  Future<void> validateDatabase() async {
+  Future<void> _validateDatabase() async {
     setState(() {
-      busy = true;
-      status = 'Validating database...';
+      _loading = true;
+      _status = 'Validating database...';
     });
 
     try {
-      final result = await DatabaseValidator.validate();
-
-      final coopedUpArtists = (result['coopedUpArtists'] as List).join(', ');
-
-      final coopedUpHistory = (result['coopedUpHistory'] as List)
-          .map((row) {
-            final map = Map<String, dynamic>.from(row);
-
-            return '${map['chart_date']}  '
-                '#${map['rank']}  '
-                '(peak #${map['peak_rank']}, '
-                '${map['weeks_on_chart']} weeks)';
-          })
-          .join('\n');
+      final result =
+          await DatabaseValidator.validate();
 
       if (!mounted) return;
 
       setState(() {
-        busy = false;
-
-        status =
-            '''
-Validation complete.
-
-Hot 100:
-${result['hot100FirstDate']} → ${result['hot100LastDate']}
-Entries: ${result['hot100Entries']}
-
-Billboard 200:
-${result['billboard200FirstDate']} → ${result['billboard200LastDate']}
-Entries: ${result['billboard200Entries']}
-
-Cooped Up artists:
-$coopedUpArtists
-
-Cooped Up history:
-$coopedUpHistory
-''';
+        _loading = false;
+        _status = result.toString();
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        busy = false;
-        status = 'Validation failed:\n$e';
+        _loading = false;
+        _status = 'Validation failed: $e';
       });
     }
   }
 
   // ============================================================
-  // MUSICBRAINZ TEST
+  // ENRICH ARTISTS
   // ============================================================
 
-  Future<void> testMusicBrainz() async {
+  Future<void> _enrichArtists() async {
+    if (_enriching) return;
+
     setState(() {
-      busy = true;
-      status = 'Testing MusicBrainz matching...';
+      _enriching = true;
+      _status = 'Starting artist enrichment...';
+
+      _completed = 0;
+      _total = 0;
+      _matched = 0;
+      _skipped = 0;
+      _failed = 0;
+      _currentArtist = '';
     });
 
     try {
-      final testArtists = ['Jackson 5'];
-
-      final results = <String>[];
-
-      for (final artistName in testArtists) {
-        final match = await MusicBrainzService.findBestArtistMatch(artistName);
-
-        if (match == null) {
-          results.add(
-            '$artistName\n'
-            'NO AUTOMATIC MATCH',
-          );
-        } else {
-          results.add(
-            '$artistName\n'
-            '→ ${match.artist.name}\n'
-            '→ ${match.artist.id}\n'
-            '→ Score: ${match.artist.score}\n'
-            '→ Confidence: ${match.confidence}',
-          );
-        }
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        busy = false;
-
-        status = results.join('\n\n--------------------\n\n');
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        busy = false;
-        status = 'MusicBrainz test failed:\n$e';
-      });
-    }
-  }
-
-  // ============================================================
-  // ENRICH FIRST 10 ARTISTS
-  // ============================================================
-
-  Future<void> enrichFirst10Artists() async {
-    setState(() {
-      busy = true;
-      progress = 0.0;
-      status = 'Enriching first 10 artists...';
-    });
-
-    try {
-      final result = await MusicBrainzEnricher.enrichArtists(
-        limit: 20,
-        onProgress: (completed, total) {
+      final result =
+          await MusicBrainzEnricher.enrichArtists(
+        onProgress: (
+          completed,
+          total,
+          currentArtist,
+        ) {
           if (!mounted) return;
 
           setState(() {
-            progress = total == 0 ? 0 : completed / total;
-
-            status =
-                'Enriching artists...\n'
-                '$completed / $total';
+            _completed = completed;
+            _total = total;
+            _currentArtist = currentArtist;
           });
         },
       );
 
-      await loadCounts();
-
       if (!mounted) return;
 
       setState(() {
-        busy = false;
-        progress = 1.0;
+        _enriching = false;
 
-        status =
-            '''
-Artist enrichment test complete.
+        _completed = result.total;
+        _total = result.total;
+        _matched = result.matched;
+        _skipped = result.skipped;
+        _failed = result.failed;
 
-Total: ${result.total}
-Matched: ${result.matched}
-Skipped: ${result.skipped}
-Failed: ${result.failed}
-''';
+        _currentArtist = '';
+        _status = 'Artist enrichment complete.';
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        busy = false;
-        status = 'Artist enrichment failed:\n$e';
+        _enriching = false;
+        _status = 'Enrichment failed: $e';
       });
     }
+
+    await _loadCounts();
   }
 
   // ============================================================
@@ -312,92 +272,181 @@ Failed: ${result.failed}
 
   @override
   Widget build(BuildContext context) {
+    final progress =
+        _total == 0
+            ? 0.0
+            : _completed / _total;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('ChartLens Database Test')),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                status,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16),
-              ),
+      appBar: AppBar(
+        title: const Text('ChartLens'),
+      ),
+      body: _loading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Text(
+                    _status,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                    ),
+                  ),
 
-              const SizedBox(height: 20),
+                  const SizedBox(height: 32),
 
-              if (busy)
-                Column(
-                  children: [
+                  // ------------------------------------------------
+                  // DATABASE COUNTS
+                  // ------------------------------------------------
+
+                  _buildCount(
+                    'Artists',
+                    _artists,
+                  ),
+
+                  _buildCount(
+                    'Songs',
+                    _songs,
+                  ),
+
+                  _buildCount(
+                    'Albums',
+                    _albums,
+                  ),
+
+                  _buildCount(
+                    'Hot 100 entries',
+                    _hot100Entries,
+                  ),
+
+                  _buildCount(
+                    'Billboard 200 entries',
+                    _billboard200Entries,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // ------------------------------------------------
+                  // IMPORT
+                  // ------------------------------------------------
+
+                  ElevatedButton(
+                    onPressed: _enriching
+                        ? null
+                        : _importDatabase,
+                    child: const Text(
+                      'Import Database',
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ------------------------------------------------
+                  // VALIDATE
+                  // ------------------------------------------------
+
+                  ElevatedButton(
+                    onPressed: _enriching
+                        ? null
+                        : _validateDatabase,
+                    child: const Text(
+                      'Validate Database',
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ------------------------------------------------
+                  // ARTIST ENRICHMENT
+                  // ------------------------------------------------
+
+                  const Text(
+                    'MusicBrainz Artist Enrichment',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  ElevatedButton(
+                    onPressed: _enriching
+                        ? null
+                        : _enrichArtists,
+                    child: Text(
+                      _enriching
+                          ? 'Enriching...'
+                          : 'Enrich All Artists',
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  if (_enriching ||
+                      _total > 0) ...[
                     LinearProgressIndicator(
-                      value: progress == 0 ? null : progress,
+                      value: progress,
                     ),
 
-                    const SizedBox(height: 8),
-                  ],
-                ),
+                    const SizedBox(height: 12),
 
-              const SizedBox(height: 8),
+                    Text(
+                      '$_completed / $_total',
+                    ),
 
-              // ------------------------------------------------
-              // IMPORT
-              // ------------------------------------------------
-              ElevatedButton(
-                onPressed: busy ? null : importDatabase,
-                child: Text(busy ? 'Working...' : 'Import Database'),
-              ),
+                    const SizedBox(height: 16),
 
-              const SizedBox(height: 10),
-
-              // ------------------------------------------------
-              // VALIDATE
-              // ------------------------------------------------
-              ElevatedButton(
-                onPressed: busy ? null : validateDatabase,
-                child: const Text('Validate Database'),
-              ),
-
-              const SizedBox(height: 10),
-
-              // ------------------------------------------------
-              // MUSICBRAINZ TEST
-              // ------------------------------------------------
-              ElevatedButton(
-                onPressed: busy ? null : testMusicBrainz,
-                child: const Text('Test MusicBrainz'),
-              ),
-
-              const SizedBox(height: 10),
-
-              // ------------------------------------------------
-              // ENRICH 10
-              // ------------------------------------------------
-              ElevatedButton(
-                onPressed: busy ? null : enrichFirst10Artists,
-                child: const Text('Enrich First 10 Artists'),
-              ),
-
-              const SizedBox(height: 30),
-
-              // ------------------------------------------------
-              // DATABASE COUNTS
-              // ------------------------------------------------
-              if (counts.isNotEmpty)
-                Column(
-                  children: counts.entries.map((entry) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        '${entry.key}: ${entry.value}',
-                        style: const TextStyle(fontSize: 18),
+                    if (_currentArtist.isNotEmpty)
+                      Text(
+                        'Current artist:\n'
+                        '$_currentArtist',
+                        textAlign: TextAlign.center,
                       ),
-                    );
-                  }).toList(),
-                ),
-            ],
-          ),
+
+                    const SizedBox(height: 20),
+
+                    _buildCount(
+                      'Matched',
+                      _matched,
+                    ),
+
+                    _buildCount(
+                      'Skipped',
+                      _skipped,
+                    ),
+
+                    _buildCount(
+                      'Failed',
+                      _failed,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+    );
+  }
+
+  // ============================================================
+  // COUNT WIDGET
+  // ============================================================
+
+  Widget _buildCount(
+    String label,
+    int value,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        vertical: 4,
+      ),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(
+          fontSize: 17,
         ),
       ),
     );

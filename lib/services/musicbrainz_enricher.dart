@@ -8,7 +8,11 @@ class MusicBrainzEnricher {
 
   static Future<EnrichmentResult> enrichArtists({
     int? limit,
-    void Function(int completed, int total)? onProgress,
+    void Function(
+      int completed,
+      int total,
+      String currentArtist,
+    )? onProgress,
   }) async {
     final db = await DatabaseHelper.instance.database;
 
@@ -39,11 +43,11 @@ class MusicBrainzEnricher {
       final artistId = artist['artist_id'] as int;
       final artistName = artist['name'] as String;
 
-      onProgress?.call(i, artists.length);
-
-      // --------------------------------------------------------
-      // Skip generic artist credits
-      // --------------------------------------------------------
+      onProgress?.call(
+        i,
+        artists.length,
+        artistName,
+      );
 
       if (_genericCredits.contains(artistName)) {
         skipped++;
@@ -52,23 +56,20 @@ class MusicBrainzEnricher {
           'SKIPPED: "$artistName" → generic credit',
         );
 
-        onProgress?.call(i + 1, artists.length);
+        onProgress?.call(
+          i + 1,
+          artists.length,
+          artistName,
+        );
+
         continue;
       }
-
-      // --------------------------------------------------------
-      // Search MusicBrainz
-      // --------------------------------------------------------
 
       try {
         final match =
             await MusicBrainzService.findBestArtistMatch(
           artistName,
         );
-
-        // ------------------------------------------------------
-        // No suitable result
-        // ------------------------------------------------------
 
         if (match == null) {
           skipped++;
@@ -77,13 +78,14 @@ class MusicBrainzEnricher {
             'SKIPPED: "$artistName" → no suitable match',
           );
 
-          onProgress?.call(i + 1, artists.length);
+          onProgress?.call(
+            i + 1,
+            artists.length,
+            artistName,
+          );
+
           continue;
         }
-
-        // ------------------------------------------------------
-        // Only accept high-confidence matches
-        // ------------------------------------------------------
 
         if (match.confidence != MatchConfidence.high) {
           skipped++;
@@ -93,13 +95,14 @@ class MusicBrainzEnricher {
             '${match.confidence}',
           );
 
-          onProgress?.call(i + 1, artists.length);
+          onProgress?.call(
+            i + 1,
+            artists.length,
+            artistName,
+          );
+
           continue;
         }
-
-        // ------------------------------------------------------
-        // Save MusicBrainz ID
-        // ------------------------------------------------------
 
         await db.update(
           'artist',
@@ -125,7 +128,11 @@ class MusicBrainzEnricher {
         );
       }
 
-      onProgress?.call(i + 1, artists.length);
+      onProgress?.call(
+        i + 1,
+        artists.length,
+        artistName,
+      );
     }
 
     print('''
