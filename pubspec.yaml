@@ -17,3 +17,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/data/hot100_2022_2025.json
+    - assets/data/billboard200_2022_2025.csv
