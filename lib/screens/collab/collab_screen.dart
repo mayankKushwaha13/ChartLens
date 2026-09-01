@@ -38,6 +38,11 @@ class _CollabScreenState extends State<CollabScreen> {
   List<int> _networkArtists = [];
   String? _networkError;
 
+  bool _isFindingStrongestRoute = false;
+  List<int> _strongestRoute = [];
+  double? _strongestRouteCost;
+  String? _strongestRouteError;
+
   @override
   void initState() {
     super.initState();
@@ -165,11 +170,70 @@ class _CollabScreenState extends State<CollabScreen> {
     }
   }
 
+  Future<void> _findStrongestRoute() async {
+    if (_selectedArtist1 == null ||
+        _selectedArtist2 == null) {
+      setState(() {
+        _strongestRouteError =
+            'Please select two artists.';
+        _strongestRoute = [];
+        _strongestRouteCost = null;
+      });
+      return;
+    }
+
+    if (_selectedArtist1 == _selectedArtist2) {
+      setState(() {
+        _strongestRouteError =
+            'Please select two different artists.';
+        _strongestRoute = [];
+        _strongestRouteCost = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isFindingStrongestRoute = true;
+      _strongestRouteError = null;
+      _strongestRoute = [];
+      _strongestRouteCost = null;
+    });
+
+    try {
+      final result =
+          await _graphService.getStrongestRoute(
+        _selectedArtist1!,
+        _selectedArtist2!,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _strongestRoute = result.path;
+        _strongestRouteCost = result.cost;
+        _isFindingStrongestRoute = false;
+
+        if (result.path.isEmpty) {
+          _strongestRouteError =
+              'No collaboration route found between these artists.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isFindingStrongestRoute = false;
+        _strongestRouteError = e.toString();
+        _strongestRoute = [];
+        _strongestRouteCost = null;
+      });
+    }
+  }
+
   Future<void> _exploreNetwork() async {
     if (_networkArtist == null) {
       setState(() {
-        _networkError =
-            'Please select an artist.';
+        _networkError = 'Please select an artist.';
         _networkArtists = [];
       });
       return;
@@ -227,7 +291,7 @@ class _CollabScreenState extends State<CollabScreen> {
     required String title,
     int? excludedArtistId,
   }) async {
-    return await showModalBottomSheet<int>(
+    return showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -253,6 +317,9 @@ class _CollabScreenState extends State<CollabScreen> {
       _selectedArtist1 = artistId;
       _connectionPath = [];
       _connectionError = null;
+      _strongestRoute = [];
+      _strongestRouteCost = null;
+      _strongestRouteError = null;
     });
   }
 
@@ -268,6 +335,9 @@ class _CollabScreenState extends State<CollabScreen> {
       _selectedArtist2 = artistId;
       _connectionPath = [];
       _connectionError = null;
+      _strongestRoute = [];
+      _strongestRouteCost = null;
+      _strongestRouteError = null;
     });
   }
 
@@ -307,18 +377,6 @@ class _CollabScreenState extends State<CollabScreen> {
           selectedName ?? 'Search for an artist',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: selectedName == null
-              ? Theme.of(context)
-                  .textTheme
-                  .bodyLarge
-                  ?.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurfaceVariant,
-                  )
-              : Theme.of(context)
-                  .textTheme
-                  .bodyLarge,
         ),
       ),
     );
@@ -404,9 +462,7 @@ class _CollabScreenState extends State<CollabScreen> {
       children: [
         Text(
           'Top collaborations in $_selectedYear',
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium,
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 24),
         const Text(
@@ -497,87 +553,143 @@ class _CollabScreenState extends State<CollabScreen> {
               Text(
                 _connectionError!,
                 style: TextStyle(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .error,
+                  color:
+                      Theme.of(context).colorScheme.error,
                 ),
               ),
             ],
-            if (_connectionPath.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              const Text(
-                'Collaboration Path',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
+            if (_connectionPath.isNotEmpty)
+              _buildPath(
+                title: 'Collaboration Path',
+                path: _connectionPath,
+                footer:
+                    '${_connectionPath.length - 1} collaboration '
+                    '${_connectionPath.length - 1 == 1 ? 'hop' : 'hops'}',
               ),
-              const SizedBox(height: 12),
-              ..._connectionPath.asMap().entries.map(
-                (entry) {
-                  final index = entry.key;
-                  final artistId = entry.value;
-
-                  return Row(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Column(
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            child: Text(
-                              '${index + 1}',
-                              style:
-                                  const TextStyle(
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                          if (index <
-                              _connectionPath.length - 1)
-                            Container(
-                              width: 2,
-                              height: 28,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .outlineVariant,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Padding(
-                          padding:
-                              const EdgeInsets.only(
-                            top: 7,
-                          ),
-                          child: Text(
-                            _artistName(artistId),
-                            style:
-                                const TextStyle(
-                              fontWeight:
-                                  FontWeight.w600,
-                            ),
-                          ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isFindingStrongestRoute
+                    ? null
+                    : _findStrongestRoute,
+                icon: _isFindingStrongestRoute
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child:
+                            CircularProgressIndicator(
+                          strokeWidth: 2,
                         ),
-                      ),
-                    ],
-                  );
-                },
+                      )
+                    : const Icon(Icons.alt_route),
+                label: Text(
+                  _isFindingStrongestRoute
+                      ? 'Calculating...'
+                      : 'Find Strongest Route',
+                ),
               ),
-              const SizedBox(height: 12),
+            ),
+            if (_strongestRouteError != null) ...[
+              const SizedBox(height: 16),
               Text(
-                '${_connectionPath.length - 1} collaboration '
-                '${_connectionPath.length - 1 == 1 ? 'hop' : 'hops'}',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall,
+                _strongestRouteError!,
+                style: TextStyle(
+                  color:
+                      Theme.of(context).colorScheme.error,
+                ),
               ),
             ],
+            if (_strongestRoute.isNotEmpty)
+              _buildPath(
+                title: 'Strongest Collaboration Route',
+                path: _strongestRoute,
+                footer:
+                    'Weighted route cost: '
+                    '${_strongestRouteCost!.toStringAsFixed(2)}',
+              ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPath({
+    required String title,
+    required List<int> path,
+    required String footer,
+  }) {
+    return Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...path.asMap().entries.map(
+          (entry) {
+            final index = entry.key;
+            final artistId = entry.value;
+
+            return Row(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      child: Text(
+                        '${index + 1}',
+                        style:
+                            const TextStyle(
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    if (index < path.length - 1)
+                      Container(
+                        width: 2,
+                        height: 28,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outlineVariant,
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.only(top: 7),
+                    child: Text(
+                      _artistName(artistId),
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        Text(
+          footer,
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall,
+        ),
+      ],
     );
   }
 
@@ -635,9 +747,8 @@ class _CollabScreenState extends State<CollabScreen> {
               Text(
                 _networkError!,
                 style: TextStyle(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .error,
+                  color:
+                      Theme.of(context).colorScheme.error,
                 ),
               ),
             ],
@@ -655,9 +766,8 @@ class _CollabScreenState extends State<CollabScreen> {
                 (artistId) {
                   return ListTile(
                     dense: true,
-                    leading: const Icon(
-                      Icons.person_outline,
-                    ),
+                    leading:
+                        const Icon(Icons.person_outline),
                     title: Text(
                       _artistName(artistId),
                     ),
