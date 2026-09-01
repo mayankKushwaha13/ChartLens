@@ -1,4 +1,6 @@
 import 'package:chartlens/screens/albums/albums_screen.dart';
+import 'package:chartlens/screens/analytics/analytics_screen.dart';
+import 'package:chartlens/screens/collab/collab_screen.dart';
 import 'package:flutter/material.dart';
 
 import 'artists/artists_screen.dart';
@@ -36,6 +38,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
       case 3:
         return const AlbumsScreen();
+
+      case 4:
+        return const AnalyticsScreen();
+
+      case 5:
+        return const CollabScreen();
 
       default:
         return Center(
