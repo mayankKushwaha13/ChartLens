@@ -25,35 +25,36 @@ class _HomeScreenState extends State<HomeScreen> {
     'Analytics',
     'Collaboration',
   ];
-  Widget _buildCurrentScreen() {
-    switch (_selectedIndex) {
-      case 0:
-        return const DashboardScreen();
 
-      case 1:
-        return const SongsScreen();
+  // ============================================================
+  // SCREENS
+  // ============================================================
 
-      case 2:
-        return const ArtistsScreen();
+  late final List<Widget> _screens;
 
-      case 3:
-        return const AlbumsScreen();
+  @override
+  void initState() {
+    super.initState();
 
-      case 4:
-        return const AnalyticsScreen();
-
-      case 5:
-        return const CollabScreen();
-
-      default:
-        return Center(
-          child: Text(
-            _titles[_selectedIndex],
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-        );
-    }
+    _screens = [
+      DashboardScreen(
+        onNavigate: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+      ),
+      const SongsScreen(),
+      const ArtistsScreen(),
+      const AlbumsScreen(),
+      const AnalyticsScreen(),
+      const CollabScreen(),
+    ];
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -61,45 +62,63 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text(
           _titles[_selectedIndex],
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
 
-      body: _buildCurrentScreen(),
+      // IndexedStack keeps every screen alive.
+      // Switching tabs no longer recreates the screen.
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
+      ),
+
+      // ==========================================================
+      // BOTTOM NAVIGATION
+      // ==========================================================
 
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
+
         onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
           });
         },
+
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             selectedIcon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
+
           NavigationDestination(
             icon: Icon(Icons.music_note_outlined),
             selectedIcon: Icon(Icons.music_note),
             label: 'Songs',
           ),
+
           NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
             label: 'Artists',
           ),
+
           NavigationDestination(
             icon: Icon(Icons.album_outlined),
             selectedIcon: Icon(Icons.album),
             label: 'Albums',
           ),
+
           NavigationDestination(
             icon: Icon(Icons.analytics_outlined),
             selectedIcon: Icon(Icons.analytics),
             label: 'Analytics',
           ),
+
           NavigationDestination(
             icon: Icon(Icons.hub_outlined),
             selectedIcon: Icon(Icons.hub),

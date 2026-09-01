@@ -32,6 +32,28 @@ class SongRepository {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getAllSongsForRanking() async {
+    return await db.rawQuery('''
+    SELECT
+      s.song_id,
+      s.title,
+      s.artist_credit,
+      SUM(101 - ce.rank) AS chart_score,
+      COUNT(*) AS weeks_on_chart,
+      MIN(ce.rank) AS peak_rank
+    FROM song s
+    JOIN chart_entry ce
+      ON s.song_id = ce.song_id
+    JOIN chart c
+      ON ce.chart_id = c.chart_id
+    WHERE c.name = 'Billboard Hot 100'
+    GROUP BY
+      s.song_id,
+      s.title,
+      s.artist_credit
+    ''');
+  }
+
   Future<List<Map<String, dynamic>>> searchSongs(String query) async {
     final trimmedQuery = query.trim();
 

@@ -9,9 +9,7 @@ class ArtistRepository {
   // TOP ARTISTS
   // ============================================================
 
-  Future<List<Map<String, dynamic>>> getTopArtists({
-    int limit = 10,
-  }) async {
+  Future<List<Map<String, dynamic>>> getTopArtists({int limit = 10}) async {
     return await db.rawQuery(
       '''
       SELECT
@@ -45,9 +43,7 @@ class ArtistRepository {
   // SEARCH ARTISTS
   // ============================================================
 
-  Future<List<Map<String, dynamic>>> searchArtists(
-    String query,
-  ) async {
+  Future<List<Map<String, dynamic>>> searchArtists(String query) async {
     final trimmedQuery = query.trim();
 
     if (trimmedQuery.isEmpty) {
@@ -80,9 +76,7 @@ class ArtistRepository {
       ORDER BY chart_score DESC
       LIMIT 50
       ''',
-      [
-        '%$trimmedQuery%',
-      ],
+      ['%$trimmedQuery%'],
     );
   }
 
@@ -90,9 +84,7 @@ class ArtistRepository {
   // ARTIST SONGS
   // ============================================================
 
-  Future<List<Map<String, dynamic>>> getArtistSongs(
-    int artistId,
-  ) async {
+  Future<List<Map<String, dynamic>>> getArtistSongs(int artistId) async {
     return await db.rawQuery(
       '''
       SELECT
@@ -145,4 +137,34 @@ class ArtistRepository {
 
     return (result.first['chart_score'] as int?) ?? 0;
   }
+
+  Future<List<Map<String, dynamic>>> getCollaborationPairs() async {
+    return await db.rawQuery('''
+    SELECT
+      sa1.artist_id AS artist1_id,
+      sa2.artist_id AS artist2_id,
+      COUNT(DISTINCT sa1.song_id) AS collaboration_count
+    FROM song_artist sa1
+    JOIN song_artist sa2
+      ON sa1.song_id = sa2.song_id
+    JOIN song s
+      ON sa1.song_id = s.song_id
+    WHERE sa1.artist_id < sa2.artist_id
+    GROUP BY
+      sa1.artist_id,
+      sa2.artist_id
+    ORDER BY collaboration_count DESC
+    ''');
+  }
+
+  Future<List<Map<String, dynamic>>> getAllArtists() async {
+    return await db.rawQuery('''
+    SELECT
+      artist_id,
+      name
+    FROM artist
+    ORDER BY name ASC
+    ''');
+  }
+  
 }

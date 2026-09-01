@@ -10,7 +10,8 @@ class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
   @override
-  State<AnalyticsScreen> createState() => _AnalyticsScreenState();
+  State<AnalyticsScreen> createState() =>
+      _AnalyticsScreenState();
 }
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
@@ -99,28 +100,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return Column(
       children: [
         // ============================================================
-        // HEADER
+        // YEAR SELECTOR
         // ============================================================
 
         Padding(
           padding: const EdgeInsets.fromLTRB(
             20,
-            20,
+            12,
             20,
             8,
           ),
           child: Row(
             mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
+                MainAxisAlignment.end,
             children: [
-              const Text(
-                'Analytics',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
               DropdownButton<int>(
                 value: _selectedYear,
                 items: const [
@@ -325,7 +318,6 @@ class _SongAnalyticsCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // RANK
               CircleAvatar(
                 radius: 20,
                 child: Text('$rank'),
@@ -333,7 +325,6 @@ class _SongAnalyticsCard extends StatelessWidget {
 
               const SizedBox(width: 14),
 
-              // SONG INFORMATION
               Expanded(
                 child: Column(
                   crossAxisAlignment:
@@ -376,7 +367,6 @@ class _SongAnalyticsCard extends StatelessWidget {
 
               const SizedBox(width: 8),
 
-              // SCORE
               Column(
                 mainAxisAlignment:
                     MainAxisAlignment.center,
@@ -474,7 +464,6 @@ class _ArtistAnalyticsCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // RANK
               CircleAvatar(
                 radius: 20,
                 child: Text('$rank'),
@@ -482,7 +471,6 @@ class _ArtistAnalyticsCard extends StatelessWidget {
 
               const SizedBox(width: 14),
 
-              // ARTIST INFORMATION
               Expanded(
                 child: Column(
                   crossAxisAlignment:
@@ -502,8 +490,10 @@ class _ArtistAnalyticsCard extends StatelessWidget {
                     const SizedBox(height: 4),
 
                     Text(
-                      '$songCount songs • '
-                      '$appearances appearances',
+                      '$songCount '
+                      '${songCount == 1 ? 'song' : 'songs'} • '
+                      '$appearances '
+                      '${appearances == 1 ? 'appearance' : 'appearances'}',
                       maxLines: 1,
                       overflow:
                           TextOverflow.ellipsis,
@@ -526,7 +516,6 @@ class _ArtistAnalyticsCard extends StatelessWidget {
 
               const SizedBox(width: 8),
 
-              // SCORE
               Column(
                 mainAxisAlignment:
                     MainAxisAlignment.center,
