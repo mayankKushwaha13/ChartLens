@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../algorithms/louvain.dart';
 import '../../database/database_helper.dart';
 import '../../repositories/artist_repository.dart';
 import '../../repositories/collaboration_repository.dart';
@@ -42,6 +43,10 @@ class _CollabScreenState extends State<CollabScreen> {
   List<int> _strongestRoute = [];
   double? _strongestRouteCost;
   String? _strongestRouteError;
+
+  bool _isDiscoveringCommunities = false;
+  List<LouvainCommunity> _communities = [];
+  String? _communityError;
 
   @override
   void initState() {
@@ -273,6 +278,39 @@ class _CollabScreenState extends State<CollabScreen> {
     }
   }
 
+  Future<void> _discoverCommunities() async {
+    setState(() {
+      _isDiscoveringCommunities = true;
+      _communityError = null;
+      _communities = [];
+    });
+
+    try {
+      final communities =
+          await _graphService.getCommunities();
+
+      if (!mounted) return;
+
+      setState(() {
+        _communities = communities;
+        _isDiscoveringCommunities = false;
+
+        if (communities.isEmpty) {
+          _communityError =
+              'No collaboration communities found.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isDiscoveringCommunities = false;
+        _communityError = e.toString();
+        _communities = [];
+      });
+    }
+  }
+
   String _artistName(int artistId) {
     for (final artist in _artists) {
       final id =
@@ -489,6 +527,8 @@ class _CollabScreenState extends State<CollabScreen> {
         _buildConnectionSection(),
         const SizedBox(height: 20),
         _buildNetworkSection(),
+        const SizedBox(height: 20),
+        _buildCommunitiesSection(),
       ],
     );
   }
@@ -785,6 +825,166 @@ class _CollabScreenState extends State<CollabScreen> {
                         .bodySmall,
                   ),
                 ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCommunitiesSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Collaboration Communities',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Discover artist groups based on collaboration patterns.',
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _isDiscoveringCommunities
+                    ? null
+                    : _discoverCommunities,
+                icon: _isDiscoveringCommunities
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child:
+                            CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.groups),
+                label: Text(
+                  _isDiscoveringCommunities
+                      ? 'Discovering...'
+                      : 'Discover Communities',
+                ),
+              ),
+            ),
+            if (_communityError != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                _communityError!,
+                style: TextStyle(
+                  color:
+                      Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ],
+            if (_communities.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Text(
+                '${_communities.length} communities discovered',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Overall modularity: '
+                '${_communities.first.modularity.toStringAsFixed(3)}',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall,
+              ),
+              const SizedBox(height: 12),
+              ..._communities
+                  .asMap()
+                  .entries
+                  .take(10)
+                  .map((entry) {
+                final index = entry.key;
+                final community = entry.value;
+
+                return Card(
+                  margin: const EdgeInsets.only(
+                    bottom: 10,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              child: Text(
+                                '${index + 1}',
+                                style:
+                                    const TextStyle(
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Community ${index + 1}',
+                                style:
+                                    const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight:
+                                      FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '${community.artists.length} artists',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: community.artists
+                              .take(12)
+                              .map(
+                                (artistId) => Chip(
+                                  label: Text(
+                                    _artistName(
+                                      artistId,
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                        if (community.artists.length >
+                            12) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            '+ ${community.artists.length - 12} more artists',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              }),
             ],
           ],
         ),
