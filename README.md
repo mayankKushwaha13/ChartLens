@@ -2,7 +2,7 @@
 
 **Music chart analytics powered by algorithms, graph theory, and relational databases.**
 
-ChartLens is a Flutter application that transforms Billboard Hot 100 and Billboard 200 data (2022 - 2025) into interactive music analytics. It combines a local SQLite database, custom data-processing algorithms, and artist collaboration graph analysis to explore song performance, artist rankings, album trends, and relationships within the music ecosystem.
+ChartLens is a Flutter application that transforms Billboard Hot 100 and Billboard 200 data (2022 - 2025) into interactive music analytics. It combines a local SQLite database, custom data processing algorithms, and artist collaboration graph analysis to explore song performance, artist rankings, album trends, and relationships within the music ecosystem.
 
 <img width="383" height="772" alt="image" src="https://github.com/user-attachments/assets/c5edbea2-c529-4d41-873c-7b3300d243c8" />
 <img width="382" height="716" alt="image" src="https://github.com/user-attachments/assets/10446558-8afb-4a56-89f2-1d88ed279546" />
@@ -33,12 +33,12 @@ ChartLens incorporates algorithms into real music-analysis use cases rather than
 
 | Algorithm / Data Structure | Application |
 | --- | --- |
-| Breadth-First Search (BFS) | Traverse artist collaboration networks |
-| Depth-First Search (DFS) | Explore graph connectivity |
+| Breadth First Search (BFS) | Traverse artist collaboration networks |
+| Depth First Search (DFS) | Explore graph connectivity |
 | Dijkstra's Algorithm | Compute shortest paths using non-negative edge weights |
 | Louvain Community Detection | Identify densely connected groups in the collaboration graph |
-| Custom Min-Heap | Support efficient priority-based processing |
-| Top-K Selection | Retrieve a limited set of high-ranking songs |
+| Custom Min Heap | Support efficient priority based processing |
+| Top K Selection | Retrieve a limited set of high ranking songs |
 | Weighted Graph / Adjacency Map | Represent artist collaborations and their strengths |
 
 ## 🗄️ Database & Data Engineering
@@ -52,7 +52,7 @@ The data layer includes:
 - Dedicated repositories for songs, artists, albums, chart data, and collaborations.
 - Data import pipelines for JSON and CSV chart datasets.
 - Database validation and artist-credit parsing.
-- MusicBrainz-based metadata enrichment with rate limiting and retry handling.
+- MusicBrainz based metadata enrichment with rate limiting and retry handling.
 
 ### Data Sources
 
@@ -161,10 +161,10 @@ Its primary technical goals are to:
 
 Potential extensions include:
 
-- Additional graph-centrality and connectivity algorithms.
+- Additional graph centrality and connectivity algorithms.
 - Temporal analysis of how collaboration networks change over time.
 - Artist similarity and collaboration link prediction.
-- Expanded chart-performance comparisons and visualizations.
+- Expanded chart performance comparisons and visualizations.
 - Improved automated tests and algorithm benchmarking.
 
 
